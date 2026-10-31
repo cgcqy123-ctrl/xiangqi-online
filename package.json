@@ -1,0 +1,17 @@
+{
+  "name": "xiangqi-online",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "GitHub Pages 可用的联机中国象棋（PeerJS P2P，纯静态）",
+  "scripts": {
+    "test": "node test/rules.test.mjs && node test/game.test.mjs",
+    "test:ui": "node test/ui-smoke.mjs",
+    "test:e2e": "node test/e2e-smoke.mjs",
+    "test:all": "npm run test && npm run test:ui && npm run test:e2e",
+    "serve": "node tools/serve.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

@@ -1,0 +1,21 @@
+# ä¾èµ–
+node_modules/
+
+# ç³»ç»Ÿ / ç¼–è¾‘å™¨
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# æ„å»ºä¸ä¸´æ—¶äº§ç‰©
+_site/
+dist/
+*.log
+npm-debug.log*
+
+# ±¾µØ npm »º´æ£¨É³ÏäÄÚ°²×°Ê±ÓÃ£©
+.npm-cache/
+.chrome-prof*/
+_*.png
+_preview.html
