@@ -263,15 +263,26 @@ function renderBoard(view) {
     }
   }
 
-  // 可落点提示
+  // 可落点提示（只是视觉，不吃点击；真正的点击交给下面的「交叉点热区」）
   for (const sq of targets) {
     const mk = document.createElement('div');
     mk.className = 'marker ' + (view.board[sq] ? 'cap' : 'dot');
     mk.style.setProperty('--r', R.rowOf(sq));
     mk.style.setProperty('--c', R.colOf(sq));
     mk.dataset.sq = String(sq);
-    mk.addEventListener('click', () => tryMove(view, sq));
     grid.appendChild(mk);
+  }
+
+  // 交叉点热区：空格也能点（有子的格子由棋子自己收点击）
+  for (let sq = 0; sq < 90; sq++) {
+    if (view.board[sq]) continue;
+    const hit = document.createElement('div');
+    hit.className = 'hit' + (targets.includes(sq) ? ' target' : '');
+    hit.style.setProperty('--r', R.rowOf(sq));
+    hit.style.setProperty('--c', R.colOf(sq));
+    hit.dataset.sq = String(sq);
+    hit.addEventListener('click', () => onSquareClick(view, sq));
+    grid.appendChild(hit);
   }
 
   // 棋子
@@ -284,6 +295,7 @@ function renderBoard(view) {
     const mine = view.mySide === side;
     el.className = 'piece ' + side + (mine && myTurn ? ' mine' : '');
     if (selSq === sq) el.classList.add('selected');
+    if (targets.includes(sq)) el.classList.add('can-take');
     if (view.inCheck === side && R.typeOf(pc) === 'K') el.classList.add('in-check');
     el.style.setProperty('--r', R.rowOf(sq));
     el.style.setProperty('--c', R.colOf(sq));

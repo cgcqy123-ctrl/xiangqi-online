@@ -1,4 +1,4 @@
-// 端到端冒烟测试（需要 jsdom）：在 jsdom 里真跑 main.js，用假 Peer 模拟好友 + 观众
+﻿// 端到端冒烟测试（需要 jsdom）：在 jsdom 里真跑 main.js，用假 Peer 模拟好友 + 观众
 // 覆盖：建房 → 入座 → 开局 → 你来我往走十几手 → 悔棋 → 求和 → 认输 → 再来一局
 //       → 聊天 → 观众观战 → 掉线重连 → 满员拒绝
 // 运行：npm install && npm run test:e2e
@@ -180,7 +180,7 @@ function hostPlayRandom() {
   const piece = document.querySelector(`#board-grid .piece[data-sq="${pick.from}"]`);
   if (!piece) return false;
   piece.click();
-  const spot = document.querySelector(`#board-grid .marker[data-sq="${pick.to}"]`);
+  const spot = document.querySelector(`#board-grid .hit[data-sq="${pick.to}"], #board-grid .piece[data-sq="${pick.to}"]`);
   if (!spot) return false;
   spot.click();
   return true;

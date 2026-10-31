@@ -1,4 +1,4 @@
-// UI 冒烟测试（需要 jsdom）：把一局棋完全通过「点棋子、点按钮」跑起来
+﻿// UI 冒烟测试（需要 jsdom）：把一局棋完全通过「点棋子、点按钮」跑起来
 // 运行：npm install && npm run test:ui
 import fs from 'node:fs';
 import path from 'node:path';
@@ -89,11 +89,16 @@ const dots = document.querySelectorAll('#board-grid .marker.dot');
 ok(dots.length > 5, '点炮后出现若干可落点，实际 ' + dots.length);
 ok(!!document.querySelector(`#board-grid .piece[data-sq="${sq(7, 7)}"].selected`), '选中的子有高亮');
 
-// 点落点 → 触发出棋动作
-const target = document.querySelector(`#board-grid .marker[data-sq="${sq(7, 4)}"]`);
-ok(!!target, '炮二平五的落点存在');
+// 回归：空格必须点得动（之前只有「可落点圆点」有视觉、没有点击区，导致只能吃子不能走子）
+const hits = document.querySelectorAll('#board-grid .hit');
+ok(hits.length === 90 - 32, '每个空交叉点都有热区，实际 ' + hits.length);
+ok(document.querySelectorAll('#board-grid .hit.target').length === dots.length, '可落点的热区带 target 标记');
+
+// 点落点 → 触发出棋动作（空格是透明热区，吃子是点对方的棋子）
+const target = document.querySelector(`#board-grid .hit[data-sq="${sq(7, 4)}"]`);
+ok(!!target, '炮二平五的落点热区存在（空格必须能点）');
 target.click();
-ok(pending && pending.type === 'move', '点落点会发出 move 动作');
+ok(pending && pending.type === 'move', '点空格热区会发出 move 动作');
 ok(pending && pending.from === sq(7, 7) && pending.to === sq(7, 4), '动作坐标正确');
 
 // 走完这一步再渲染
@@ -119,6 +124,23 @@ const anyPiece = document.querySelector(`#board-grid .piece[data-sq="${sq(9, 4)}
 anyPiece.click();
 ok(/观战中/.test($('toast').textContent), '观战点棋会提示只能看棋');
 ok(document.querySelectorAll('#board-grid .marker.dot').length === 0, '观战不会出现落点');
+
+/* ---------------- 吃子：点对方棋子 ---------------- */
+
+const g7 = new Game([{ name: 'A' }, { name: 'B' }]).start();
+g7.board = new Array(90).fill(null);
+g7.board[sq(9, 4)] = 'rK';
+g7.board[sq(0, 3)] = 'bK';
+g7.board[sq(5, 0)] = 'rR';
+g7.board[sq(5, 6)] = 'bP';
+render(0, g7);
+document.querySelector(`#board-grid .piece[data-sq="${sq(5, 0)}"]`).click();
+const takeable = document.querySelector(`#board-grid .piece[data-sq="${sq(5, 6)}"]`);
+ok(takeable && takeable.classList.contains('can-take'), '可吃的对方棋子有提示');
+ok(document.querySelectorAll('#board-grid .marker.cap').length === 1, '可吃位置有红圈标记');
+takeable.click();
+ok(pending && pending.type === 'move', '点对方棋子发出 move');
+ok(pending && pending.from === sq(5, 0) && pending.to === sq(5, 6), '吃子坐标正确');
 
 /* ---------------- 将军横幅 ---------------- */
 
@@ -214,7 +236,7 @@ while (g6.phase === 'play' && guard++ < 400) {  const v = render(g6.turn === 'r'
   const piece = document.querySelector(`#board-grid .piece[data-sq="${pick.from}"]`);
   ok(!!piece, '找到要走的棋子');
   piece.click();
-  const spot = document.querySelector(`#board-grid .marker[data-sq="${pick.to}"]`);
+  const spot = document.querySelector(`#board-grid .hit[data-sq="${pick.to}"], #board-grid .piece[data-sq="${pick.to}"]`);
   ok(!!spot, '找到落点提示');
   spot.click();
   ok(pending && pending.type === 'move', '点落点发出 move');

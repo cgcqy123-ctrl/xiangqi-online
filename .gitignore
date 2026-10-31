@@ -1,4 +1,4 @@
-# ä¾èµ–
+ï»¿# ä¾èµ–
 node_modules/
 
 # ç³»ç»Ÿ / ç¼–è¾‘å™¨
@@ -14,8 +14,8 @@ dist/
 *.log
 npm-debug.log*
 
-# ±¾µØ npm »º´æ£¨É³ÏäÄÚ°²×°Ê±ÓÃ£©
+# ï¿½ï¿½ï¿½ï¿½ npm ï¿½ï¿½ï¿½æ£¨É³ï¿½ï¿½ï¿½Ú°ï¿½×°Ê±ï¿½Ã£ï¿½
 .npm-cache/
-.chrome-prof*/
+.chrome-*/
 _*.png
-_preview.html
+_*.html

@@ -1,4 +1,4 @@
-﻿/* 中国象棋 · 联机版 —— 全部样式（移动端优先，木纹棋盘主题） */
+/* 中国象棋 · 联机版 —— 全部样式（移动端优先，木纹棋盘主题） */
 
 :root {
   --wood-1: #f2dcb0;
@@ -325,6 +325,21 @@ html, body {
 }
 .marker.cap { box-shadow: inset 0 0 0 3px rgba(200, 40, 35, 0.85); }
 .marker.last { box-shadow: inset 0 0 0 2px rgba(40, 90, 160, 0.75); border-radius: 8px; width: 13%; }
+
+/* 交叉点热区：铺满一格的透明方块，让空交叉点也能点中（棋子层在它上面，点棋子仍走棋子自己的逻辑） */
+.hit {
+  position: absolute;
+  left: calc(var(--c) * 12.5%);
+  top: calc(var(--r) * 11.1111%);
+  width: 12.5%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 10px;
+  z-index: 1;
+  background: transparent;
+}
+.hit.target { cursor: pointer; }
+.piece.can-take { cursor: pointer; }
 
 .check-banner {
   position: absolute;
