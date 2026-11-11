@@ -6,6 +6,8 @@
 联机走 WebRTC 点对点直连（PeerJS），对局逻辑完全在房主浏览器里跑，另一方只发动作、收视图。
 整个网站就是几个静态文件，直接丢到 GitHub Pages 就能玩。
 
+**在线试玩**：<https://cgcqy123-ctrl.github.io/xiangqi-online/> ｜ **仓库**：<https://github.com/cgcqy123-ctrl/xiangqi-online>
+
 ![纯静态](https://img.shields.io/badge/backend-none-brightgreen)
 ![依赖](https://img.shields.io/badge/deps-PeerJS%20(已内置)-blue)
 ![许可证](https://img.shields.io/badge/license-MIT-lightgrey)
