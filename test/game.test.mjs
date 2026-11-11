@@ -202,18 +202,18 @@ t('有未答复的请求时不能继续走棋', () => {
 
 /* ---------------- 悔棋 ---------------- */
 
-t('悔棋需要对方同意，撤销两步', () => {
+t('悔棋需要对方同意，撤销到自己上一步之前', () => {
   const g = new Game([{ name: '甲' }, { name: '乙' }]).start();
   g.move(0, sq(7, 7), sq(7, 4)); // 炮二平五
   g.move(1, sq(0, 1), sq(2, 2)); // 马2进3
   assert.equal(g.turn, 'r');
-  // 只能在自己走棋的时候请求
-  assert.throws(() => g.requestUndo(1), /只能在自己要走棋的时候/);
+  assert.equal(g.view(0).canUndo, true);
   g.requestUndo(0);
   assert.equal(g.view(0).offers.undo, 0);
   assert.throws(() => g.move(0, sq(9, 1), sq(7, 2)), /悔棋/);
   const r = g.replyUndo(1, true);
   assert.equal(r.accepted, true);
+  assert.equal(r.popped, 2);
   assert.equal(g.history.length, 0);
   assert.equal(g.turn, 'r');
   assert.equal(g.board[sq(7, 7)], 'rC');
@@ -232,14 +232,49 @@ t('拒绝悔棋则局面不变', () => {
   assert.equal(g.history.length, 2);
 });
 
-t('第一手就悔棋也能回到开局', () => {
+t('刚走完就能悔棋，只回退自己那一手', () => {
   const g = new Game([{ name: '甲' }, { name: '乙' }]).start();
-  g.move(0, sq(7, 7), sq(7, 4));
-  g.requestUndo(1); // 黑方在自己回合请求（撤销红方那一步）
-  g.replyUndo(0, true);
+  g.move(0, sq(7, 7), sq(7, 4)); // 红走完，轮到黑
+  assert.equal(g.view(0).canUndo, true, '刚走完（轮到对方）也能申请悔棋');
+  g.requestUndo(0);
+  const r = g.replyUndo(1, true);
+  assert.equal(r.popped, 1, '对方还没应招，只回退 1 手');
   assert.equal(g.history.length, 0);
   assert.equal(g.turn, 'r');
   assert.equal(g.board.join(','), R.initialBoard().join(','));
+});
+
+t('对方已应招时悔棋回退两手，回到自己走棋之前', () => {
+  const g = new Game([{ name: '甲' }, { name: '乙' }]).start();
+  g.move(0, sq(7, 7), sq(7, 4)); // 红
+  g.move(1, sq(0, 1), sq(2, 2)); // 黑
+  g.requestUndo(0);
+  const r = g.replyUndo(1, true);
+  assert.equal(r.popped, 2);
+  assert.equal(g.history.length, 0);
+  assert.equal(g.turn, 'r');
+});
+
+t('黑方刚走完也能悔棋，回退的是黑方自己那一手', () => {
+  const g = new Game([{ name: '甲' }, { name: '乙' }]).start();
+  g.move(0, sq(7, 7), sq(7, 4));
+  g.move(1, sq(0, 1), sq(2, 2)); // 黑走完，轮到红
+  g.requestUndo(1);
+  const r = g.replyUndo(0, true);
+  assert.equal(r.popped, 1);
+  assert.equal(g.history.length, 1, '红方那一手保留');
+  assert.equal(g.turn, 'b');
+  assert.equal(g.board[sq(0, 1)], 'bN', '黑马回到原位');
+  assert.equal(g.board[sq(7, 4)], 'rC', '红炮仍在');
+});
+
+t('没走过棋的一方不能请求悔棋', () => {
+  const g = new Game([{ name: '甲' }, { name: '乙' }]).start();
+  assert.equal(g.view(1).canUndo, false, '开局谁都没走过，不能悔棋');
+  assert.throws(() => g.requestUndo(1), /没有可悔的/);
+  g.move(0, sq(7, 7), sq(7, 4));
+  assert.throws(() => g.requestUndo(1), /没有可悔的/, '黑方还没走过棋');
+  assert.equal(g.view(0).canUndo, true);
 });
 
 t('观战不能请求悔棋 / 认输 / 和棋', () => {

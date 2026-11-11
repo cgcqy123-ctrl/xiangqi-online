@@ -190,6 +190,41 @@ t('中文记谱：同一纵线两个同兵种用前/后', () => {
   assert.equal(R.moveNotation(c, sq(3, 0), sq(4, 0)), '后卒进1');
 });
 
+t('过河黑卒可以横走（各排都一样）', () => {
+  for (const row of [5, 6, 7]) {
+    const b = boardFrom({ '0,3': 'bK', '9,4': 'rK', [`${row},4`]: 'bP' });
+    const tos = R.legalMoves(b, sq(row, 4)).sort((x, y) => x - y);
+    assert.deepEqual(tos, [sq(row + 1, 4), sq(row, 3), sq(row, 5)].sort((x, y) => x - y), `第 ${row} 行横走`);
+  }
+  const bottom = boardFrom({ '0,3': 'bK', '9,4': 'rK', '8,4': 'bP' });
+  assert.deepEqual(R.legalMoves(bottom, sq(8, 4)).sort((x, y) => x - y), [sq(8, 3), sq(8, 5)].sort((x, y) => x - y));
+});
+
+t('被「白脸将」牵住的卒横走不了（这是规则，不是 bug）', () => {
+  // 两将同在第 4 路，黑卒是唯一挡子：一横走就两将照面
+  for (const row of [5, 6, 7]) {
+    const b = boardFrom({ '0,4': 'bK', '9,4': 'rK', [`${row},4`]: 'bP' });
+    assert.deepEqual(R.legalMoves(b, sq(row, 4)), [sq(row + 1, 4)], `第 ${row} 行只能直进`);
+  }
+  // 到底线时连直进都不行（直前是红帅，吃将不合法 + 横走会照面）→ 一步都走不了
+  const b = boardFrom({ '0,4': 'bK', '9,4': 'rK', '8,4': 'bP' });
+  assert.deepEqual(R.legalMoves(b, sq(8, 4)), []);
+});
+
+t('blockedReason：区分「没得走」和「被牵制」', () => {
+  const stuck = boardFrom({ '0,4': 'bK', '9,3': 'rK', '9,0': 'bP', '9,1': 'bP' });
+  assert.deepEqual(R.genMoves(stuck, sq(9, 0)), [], '底线黑卒被自家卒堵住');
+  assert.equal(R.blockedReason(stuck, sq(9, 0)), 'static');
+
+  const pinned = boardFrom({ '0,4': 'bK', '9,4': 'rK', '8,4': 'bP' });
+  assert.ok(R.genMoves(pinned, sq(8, 4)).length > 0, '有伪合法走法');
+  assert.equal(R.legalMoves(pinned, sq(8, 4)).length, 0);
+  assert.equal(R.blockedReason(pinned, sq(8, 4)), 'pinned');
+
+  const free = boardFrom({ '0,3': 'bK', '9,4': 'rK', '6,4': 'bP' });
+  assert.equal(R.blockedReason(free, sq(6, 4)), 'free');
+});
+
 t('applyMove 不修改原棋盘', () => {
   const b = R.initialBoard();
   const snapshot = b.join(',');

@@ -1,4 +1,4 @@
-﻿// UI 冒烟测试（需要 jsdom）：把一局棋完全通过「点棋子、点按钮」跑起来
+// UI 冒烟测试（需要 jsdom）：把一局棋完全通过「点棋子、点按钮」跑起来
 // 运行：npm install && npm run test:ui
 import fs from 'node:fs';
 import path from 'node:path';
@@ -141,6 +141,52 @@ ok(document.querySelectorAll('#board-grid .marker.cap').length === 1, '可吃位
 takeable.click();
 ok(pending && pending.type === 'move', '点对方棋子发出 move');
 ok(pending && pending.from === sq(5, 0) && pending.to === sq(5, 6), '吃子坐标正确');
+
+/* ---------------- 视角：黑方棋盘 180° 翻转 ---------------- */
+
+const rv = (el, name) => el.style.getPropertyValue(name);
+const g8 = new Game([{ name: 'A' }, { name: 'B' }]).start();
+render(1, g8); // 黑方视角
+const bk = document.querySelector(`#board-grid .piece[data-sq="${sq(0, 4)}"]`);
+const bkRook = document.querySelector(`#board-grid .piece[data-sq="${sq(0, 0)}"]`);
+const rk = document.querySelector(`#board-grid .piece[data-sq="${sq(9, 4)}"]`);
+ok(rv(bk, '--r') === '9' && rv(bk, '--c') === '4', '黑方视角：黑将显示在最下方中线');
+ok(rv(bkRook, '--r') === '9' && rv(bkRook, '--c') === '8', '黑方视角：黑车（逻辑 0,0）显示在右下角');
+ok(rv(rk, '--r') === '0' && rv(rk, '--c') === '4', '黑方视角：红帅显示在最上方中线');
+const hitEmpty = document.querySelector(`#board-grid .hit[data-sq="${sq(2, 0)}"]`);
+ok(hitEmpty && rv(hitEmpty, '--r') === '7' && rv(hitEmpty, '--c') === '8', '黑方视角：热区也跟着翻转（逻辑 2,0 → 显示 7,8）');
+
+render(0, g8); // 红方视角
+ok(rv(document.querySelector(`#board-grid .piece[data-sq="${sq(0, 4)}"]`), '--r') === '0', '红方视角不翻转');
+ok(rv(document.querySelector(`#board-grid .piece[data-sq="${sq(9, 4)}"]`), '--r') === '9', '红方视角红帅在下');
+
+render(-1, g8); // 观战跟着红方视角
+ok(rv(document.querySelector(`#board-grid .piece[data-sq="${sq(0, 4)}"]`), '--r') === '0', '观战默认红方在下');
+
+/* ---------------- 悔棋按钮：不再要求「轮到自己」 ---------------- */
+
+const findBtnIn = (text) => [...document.querySelectorAll('#actions button')].find((b) => b.textContent === text);
+const g10 = new Game([{ name: 'A' }, { name: 'B' }]).start();
+g10.move(0, sq(7, 7), sq(7, 4)); // 红走完，轮到黑
+render(0, g10);
+const undoBtnRed = findBtnIn('悔棋');
+ok(undoBtnRed && !undoBtnRed.disabled, '红方刚走完（轮到黑方）也能点悔棋');
+render(1, g10);
+const undoBtnBlack = findBtnIn('悔棋');
+ok(undoBtnBlack && undoBtnBlack.disabled, '黑方一步还没走，悔棋按钮不可用');
+
+/* ---------------- 被牵制的子：给出原因提示 ---------------- */
+
+const g9 = new Game([{ name: 'A' }, { name: 'B' }]).start();
+g9.board = new Array(90).fill(null);
+g9.board[sq(0, 4)] = 'bK';
+g9.board[sq(9, 4)] = 'rK';
+g9.board[sq(8, 4)] = 'bP';
+g9.turn = 'b';
+render(1, g9);
+document.querySelector(`#board-grid .piece[data-sq="${sq(8, 4)}"]`).click();
+ok(/牵住/.test($('toast').textContent), '点被牵制的卒会说明「一动就被将军 / 两将照面」，实际：' + $('toast').textContent);
+ok(document.querySelectorAll('#board-grid .marker.dot').length === 0, '被牵制时确实没有可落点');
 
 /* ---------------- 将军横幅 ---------------- */
 

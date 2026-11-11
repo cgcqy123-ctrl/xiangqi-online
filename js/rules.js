@@ -249,6 +249,20 @@ export function allLegalMoves(board, side) {
 }
 
 /**
+ * 这个子为什么走不动，用于界面上给人解释：
+ *   'free'   —— 有棋可走
+ *   'static' —— 本身没有可走的点（被自己人堵住 / 兵到底线等）
+ *   'pinned' —— 有走法但全都不能走：动了会让自己的将帅被将军或两将照面（牵制）
+ */
+export function blockedReason(board, from) {
+  const pc = board[from];
+  if (!pc) return 'free';
+  if (!genMoves(board, from).length) return 'static';
+  if (legalMoves(board, from).length) return 'free';
+  return 'pinned';
+}
+
+/**
  * 轮到 side 走棋时的局面状态。
  * @returns {'playing'|'check'|'checkmate'|'stalemate'}
  *   checkmate = 被将死，stalemate = 困毙（无棋可走）——中国象棋两者都判负

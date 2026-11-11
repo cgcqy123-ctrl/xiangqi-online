@@ -87,7 +87,12 @@ export class Game {
     const pc = this.board[from];
     if (!pc) throw new Error('这里没有棋子');
     if (R.sideOf(pc) !== side) throw new Error('那不是你的棋子');
-    if (!R.legalMoves(this.board, from).includes(to)) throw new Error('这步棋不能这么走');
+    if (!R.legalMoves(this.board, from).includes(to)) {
+      if (R.genMoves(this.board, from).includes(to)) {
+        throw new Error('这样走会让自己的将帅被将军（或将帅照面）');
+      }
+      throw new Error('这步棋不能这么走');
+    }
 
     const notation = R.moveNotation(this.board, from, to);
     const { board, captured } = R.applyMove(this.board, from, to);
@@ -149,14 +154,21 @@ export class Game {
 
   /* ---------------- 悔棋（需要对方同意） ---------------- */
 
+  /** 这个座位现在能不能请求悔棋：自己走过棋、没人抢着申请 */
+  canRequestUndo(seat) {
+    const side = sideOfSeat(seat);
+    if (!side || this.phase !== PHASE.PLAY) return false;
+    if (this.offers.undo !== null || this.offers.draw !== null) return false;
+    return this.history.some((h) => h.side === side);
+  }
+
   requestUndo(seat) {
     if (this.phase !== PHASE.PLAY) throw new Error('对局已经结束');
     const side = sideOfSeat(seat);
     if (!side) throw new Error('观战不能悔棋');
-    if (!this.history.length) throw new Error('还没走过棋');
     if (this.offers.undo !== null) throw new Error('已经有一个悔棋请求在等回应');
     if (this.offers.draw !== null) throw new Error('先处理求和请求');
-    if (side !== this.turn) throw new Error('只能在自己要走棋的时候请求悔棋');
+    if (!this.history.some((h) => h.side === side)) throw new Error('你还没走过棋，没有可悔的');
     this.offers.undo = seat;
     return { ok: true };
   }
@@ -168,12 +180,15 @@ export class Game {
     if (!sideOfSeat(seat)) throw new Error('观战不能回应悔棋');
     this.offers.undo = null;
     if (!accept) return { ok: true, over: false, accepted: false };
+
+    // 撤回到「自己上一步之前」：正好刚走完（对方还没应）只退 1 手，对方已应则退 2 手
     const want = sideOfSeat(by);
     let popped = 0;
     while (this.history.length && popped < 2) {
+      const last = this.history[this.history.length - 1];
       this.popPly();
       popped++;
-      if (this.turn === want) break;
+      if (last.side === want && this.turn === want) break;
     }
     return { ok: true, over: false, accepted: true, popped };
   }
@@ -241,6 +256,7 @@ export class Game {
       inCheck: this.inCheck,
       captured: capturedBy,
       offers: { ...this.offers },
+      canUndo: this.canRequestUndo(seat),
       result: this.result,
       startedAt: this.startedAt,
     };

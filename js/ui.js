@@ -95,12 +95,12 @@ function line(svg, x1, y1, x2, y2, cls = 'gl') {
   svg.appendChild(l);
 }
 
-function riverText(svg, x, y, txt) {
+function riverText(svg, x, y, txt, cls) {
   const t = document.createElementNS(SVGNS, 'text');
   t.setAttribute('x', x);
   t.setAttribute('y', y);
   t.setAttribute('text-anchor', 'middle');
-  t.setAttribute('class', 'river-text');
+  t.setAttribute('class', 'river-text ' + cls);
   t.textContent = txt;
   svg.appendChild(t);
 }
@@ -137,8 +137,8 @@ function buildLines() {
   line(svg, 3, 7, 5, 9);
   line(svg, 5, 7, 3, 9);
   // 楚河汉界
-  riverText(svg, 1.85, 4.75, '楚 河');
-  riverText(svg, 6.15, 4.75, '汉 界');
+  riverText(svg, 1.85, 4.75, '楚 河', 'river-left');
+  riverText(svg, 6.15, 4.75, '汉 界', 'river-right');
   // 兵位 / 炮位标记
   for (const c of [0, 2, 4, 6, 8]) {
     positionMark(svg, c, 3);
@@ -186,6 +186,30 @@ if (typeof window !== 'undefined') {
 }
 
 /* ---------------- 棋桌 ---------------- */
+
+/** 黑方视角把棋盘转 180°：自己的子永远在下方（合规则用逻辑坐标，这里只管显示） */
+let flipBoard = false;
+
+function setFlip(view) {
+  flipBoard = view.mySide === 'b';
+}
+
+/** 逻辑格 → 显示用的行列（黑方视角翻转） */
+function posOf(sq) {
+  const r = R.rowOf(sq);
+  const c = R.colOf(sq);
+  return flipBoard ? { r: 9 - r, c: 8 - c } : { r, c };
+}
+
+/** 楚河汉界：红方在下方时「楚河」在左，黑方在下方时换边 */
+function updateRiverLabels() {
+  if (!linesEl) return;
+  const left = linesEl.querySelector('.river-left');
+  const right = linesEl.querySelector('.river-right');
+  if (!left || !right) return;
+  left.textContent = flipBoard ? '汉 界' : '楚 河';
+  right.textContent = flipBoard ? '楚 河' : '汉 界';
+}
 
 export function resetSelection() {
   selSq = null;
@@ -245,10 +269,12 @@ function renderPlayers(view) {
 function renderBoard(view) {
   const grid = $('board-grid');
   if (!grid) return;
+  setFlip(view);
   if (!linesEl) {
     linesEl = buildLines();
     grid.appendChild(linesEl);
   }
+  updateRiverLabels();
   // 清掉上一次的棋子与标记（保留线）
   for (const el of [...grid.children]) if (el !== linesEl) el.remove();
 
@@ -256,9 +282,10 @@ function renderBoard(view) {
   if (view.lastMove) {
     for (const sq of [view.lastMove.from, view.lastMove.to]) {
       const mk = document.createElement('div');
+      const p = posOf(sq);
       mk.className = 'marker last';
-      mk.style.setProperty('--r', R.rowOf(sq));
-      mk.style.setProperty('--c', R.colOf(sq));
+      mk.style.setProperty('--r', p.r);
+      mk.style.setProperty('--c', p.c);
       grid.appendChild(mk);
     }
   }
@@ -266,9 +293,10 @@ function renderBoard(view) {
   // 可落点提示（只是视觉，不吃点击；真正的点击交给下面的「交叉点热区」）
   for (const sq of targets) {
     const mk = document.createElement('div');
+    const p = posOf(sq);
     mk.className = 'marker ' + (view.board[sq] ? 'cap' : 'dot');
-    mk.style.setProperty('--r', R.rowOf(sq));
-    mk.style.setProperty('--c', R.colOf(sq));
+    mk.style.setProperty('--r', p.r);
+    mk.style.setProperty('--c', p.c);
     mk.dataset.sq = String(sq);
     grid.appendChild(mk);
   }
@@ -277,9 +305,10 @@ function renderBoard(view) {
   for (let sq = 0; sq < 90; sq++) {
     if (view.board[sq]) continue;
     const hit = document.createElement('div');
+    const p = posOf(sq);
     hit.className = 'hit' + (targets.includes(sq) ? ' target' : '');
-    hit.style.setProperty('--r', R.rowOf(sq));
-    hit.style.setProperty('--c', R.colOf(sq));
+    hit.style.setProperty('--r', p.r);
+    hit.style.setProperty('--c', p.c);
     hit.dataset.sq = String(sq);
     hit.addEventListener('click', () => onSquareClick(view, sq));
     grid.appendChild(hit);
@@ -293,12 +322,13 @@ function renderBoard(view) {
     const side = R.sideOf(pc);
     const el = document.createElement('div');
     const mine = view.mySide === side;
+    const p = posOf(sq);
     el.className = 'piece ' + side + (mine && myTurn ? ' mine' : '');
     if (selSq === sq) el.classList.add('selected');
     if (targets.includes(sq)) el.classList.add('can-take');
     if (view.inCheck === side && R.typeOf(pc) === 'K') el.classList.add('in-check');
-    el.style.setProperty('--r', R.rowOf(sq));
-    el.style.setProperty('--c', R.colOf(sq));
+    el.style.setProperty('--r', p.r);
+    el.style.setProperty('--c', p.c);
     el.dataset.sq = String(sq);
     el.textContent = R.NAME[side][R.typeOf(pc)];
     el.addEventListener('click', () => onSquareClick(view, sq));
@@ -337,7 +367,13 @@ function onSquareClick(view, sq) {
       targets = R.legalMoves(view.board, sq);
       if (!targets.length) {
         selSq = null;
-        toast('这个子没有可走的棋');
+        // 说清楚为什么走不动：被自己人堵住，还是「一动就被将 / 两将照面」
+        const why = R.blockedReason(view.board, sq);
+        toast(
+          why === 'pinned'
+            ? '这个子被牵住了：一动自己的将帅就会被将军（或将帅照面）'
+            : '这个子现在没有可走的点'
+        );
       }
     }
     renderBoard(view);
@@ -449,12 +485,13 @@ function renderActions(view) {
   spacer.className = 'spacer';
   bar.appendChild(spacer);
 
+  // 悔棋不再要求「轮到自己」：刚走完想反悔也能立刻申请（对方同意后回到自己上一步之前）
   const canUndo =
-    view.turn === view.mySide &&
-    view.moves.length > 0 &&
-    (view.offers || {}).undo == null &&
-    (view.offers || {}).draw == null;
+    view.canUndo !== undefined
+      ? !!view.canUndo
+      : view.moves.length > 0 && (view.offers || {}).undo == null && (view.offers || {}).draw == null;
   const undoBtn = btn('悔棋', 'ghost tiny', () => actionCb && actionCb({ type: 'undo' }));
+  undoBtn.title = view.turn === view.mySide ? '撤回自己上一步（需对方同意）' : '撤回自己刚走的那一步（需对方同意）';
   undoBtn.disabled = !canUndo;
   bar.appendChild(undoBtn);
 

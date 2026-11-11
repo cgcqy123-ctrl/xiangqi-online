@@ -275,9 +275,10 @@ function hostAction(seat, act) {
   if (!S.game) return;
 
   let notation = '';
+  let res = null;
   try {
-    const r = S.game.action(seat, act);
-    if (r && r.notation) notation = r.notation;
+    res = S.game.action(seat, act);
+    if (res && res.notation) notation = res.notation;
   } catch (e) {
     const msg = e && e.message ? e.message : '操作无效';
     if (seat === 0) UI.toast(msg);
@@ -285,17 +286,27 @@ function hostAction(seat, act) {
     return;
   }
 
-  if (notation) {
-    const last = S.game.history[S.game.history.length - 1];
-    const entry = makeSys(`${seatName(last.side === 'r' ? 0 : 1)}：${notation}`);
+  const say = (text) => {
+    const entry = makeSys(text);
     pushChat(entry);
     hostBroadcastChat(entry);
+  };
+
+  if (notation) say(`${seatName(S.game.history[S.game.history.length - 1].side === 'r' ? 0 : 1)}：${notation}`);
+
+  // 悔棋 / 和棋请求的交互过程也记进聊天，双方都能看到发生了什么
+  if (act.type === 'undo' && res && res.ok) say(`${seatName(seat)} 请求悔棋`);
+  if (act.type === 'undoReply' && res) {
+    if (res.accepted) say(`${seatName(seat)} 同意悔棋，回退 ${res.popped} 手`);
+    else say(`${seatName(seat)} 拒绝了悔棋`);
   }
-  if (S.game.phase === PHASE.OVER && S.game.result) {
-    const entry = makeSys(`对局结束 · ${S.game.result.text}`);
-    pushChat(entry);
-    hostBroadcastChat(entry);
+  if (act.type === 'draw' && res && res.ok) say(`${seatName(seat)} 请求和棋`);
+  if (act.type === 'drawReply' && res) {
+    if (res.accepted) say(`${seatName(seat)} 同意和棋`);
+    else say(`${seatName(seat)} 拒绝了和棋`);
   }
+
+  if (S.game.phase === PHASE.OVER && S.game.result) say(`对局结束 · ${S.game.result.text}`);
   pushStates();
 }
 
