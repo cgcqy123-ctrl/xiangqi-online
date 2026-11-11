@@ -145,6 +145,12 @@ python -m http.server 8080    # 或者 npx serve .
 公共信令服务器偶尔抽风，等几秒重试；公司/校园网若禁用 UDP，P2P 可能打洞失败，换手机热点再试。
 实在不行就[自建信令服务器](#进阶自建信令服务器)。
 
+**iPhone / Safari 连不上**
+- 先把 iOS 升级到较新版本，Safari 设置里不要开「阻止所有 Cookie」；无痕模式也建议先退出（页面已对禁止 localStorage 的隐私模式做了兜底，但升级/关闭更稳）。
+- 如果朋友用 4G/5G、或和房主不是同一个 WiFi，P2P 打洞可能失败：先换到**同一个 WiFi** 重试。
+- 已内置国内可访问的 STUN + 握手消息重发（Safari 偶尔会吞掉连接建立后的第一条消息）；如果还是停在「等待对手入座」或「正在进入房间」，刷新页面再试。
+- 网络环境实在打不了洞（对称 NAT / 运营商限制），需要 TURN 中继：见[进阶：自建信令服务器](#进阶自建信令服务器)里的 TURN 配置。
+
 **提示「房号不存在或房主已离线」**
 房号错了一位，或者房主关掉了页面。房主必须保持页面在前台（可以切后台，但别关）。
 
@@ -186,6 +192,30 @@ python -m http.server 8080    # 或者 npx serve .
 ```
 
 自建方式：`npx peerjs --port 9000 --path /myapp`，再用 Nginx 反代到 https。
+
+如果朋友在 4G / 不同网络下打洞失败，可以再加一台 TURN 中继（`coturn` 是最常用的开源实现），
+把 TURN 地址一起传给 PeerJS：
+
+```html
+<script>
+  window.PEER_OPTIONS = {
+    host: 'your-peer-server.com',
+    port: 443,
+    path: '/',
+    secure: true,
+    key: 'peerjs',
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun.miwifi.com:3478' },
+        { urls: 'turn:turn.your-server.com:3478', username: 'user', credential: 'pass' },
+      ],
+    },
+  };
+</script>
+```
+
+> 只配 `config` 而不写 `config.iceServers` 时，页面会自动补上内置的 STUN 列表。
 
 ---
 
@@ -230,7 +260,7 @@ npm run serve      # 本地起服务，http://localhost:8080
 CI：每次 push 到 `main` 会自动 `npm ci && npm run test:all`，测试通过才发布，所以改坏了不会上线。
 
 > **改完记得升版本号**：GitHub Pages 的静态资源会被浏览器缓存 10 分钟。改了 `js/` 或 `css/` 后，
-> 把 `index.html` 里两处 `?v=4`（`css/style.css?v=4`、`js/main.js?v=4`）的数字 +1，
+> 把 `index.html` 里两处 `?v=5`（`css/style.css?v=5`、`js/main.js?v=5`）的数字 +1，
 > 子模块会自动继承这个版本号，朋友刷新即可看到新版。
 
 ---
@@ -253,7 +283,7 @@ CI：每次 push 到 `main` 会自动 `npm ci && npm run test:all`，测试通�
 - 只有标准双人对局，无 AI、无棋钟、无残局/复盘编辑。
 - 长将、长捉、60 回合无吃子这类循环局面不做自动判罚，需要玩家自己约定或求和。
 - 房主是权威、也是「服务器」，房主退出即散局。
-- 依赖公共信令服务器，极端网络环境（对称 NAT）可能连不上。
+- 依赖公共信令服务器，极端网络环境（对称 NAT / 运营商限制）可能连不上；跨网络（4G/不同 WiFi）建议按上文配置 TURN。
 - 棋谱只做展示，不支持「点某一手回到过去」的复盘。
 
 ## License

@@ -13,6 +13,16 @@ const UI = await import('./ui.js' + V);
 
 const $ = (id) => document.getElementById(id);
 
+/** Safari 隐私模式 / 关闭 Cookie 时 localStorage 会直接抛异常，必须兜底，否则整个页面启动失败 */
+const store = {
+  get(key) {
+    try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) { /* Safari 隐私模式等，忽略即可 */ }
+  },
+};
+
 /** 座位安排：0 = 房主（红方，先行），1 = 对手（黑方），2 起为观战 */
 const MAX_SEATS = 8;
 const CHAT_KEEP = 60;
@@ -41,7 +51,7 @@ function getName() {
     $('in-name').focus();
     return '';
   }
-  localStorage.setItem('xq-name', v);
+  store.set('xq-name', v);
   return v;
 }
 
@@ -147,12 +157,36 @@ function seatName(seat) {
   return (S.lobbyPlayers[seat] && S.lobbyPlayers[seat].name) || '玩家';
 }
 
-function hostOnHello(conn, name) {
+function hostOnHello(conn, name, existingSeat) {
   if (!S.lobbyPlayers) {
     S.host.sendRaw(conn, { t: 'full' });
     return;
   }
   const clean = (name || '').trim().slice(0, 8) || '玩家';
+
+  // 重发 hello（Safari 丢第一条消息时）：连接已绑座位，幂等补发入座信息和大厅
+  if (existingSeat !== undefined && existingSeat !== null) {
+    const isSpec = existingSeat >= 2;
+    S.host.send(existingSeat, {
+      t: 'joined',
+      seat: existingSeat,
+      code: S.code,
+      side: isSpec ? null : existingSeat === 0 ? 'r' : 'b',
+      spectator: isSpec,
+    });
+    S.host.send(existingSeat, { t: 'chatLog', list: S.chat });
+    S.host.send(existingSeat, {
+      t: 'lobby',
+      code: S.code,
+      players: S.lobbyPlayers,
+      spectators: specNames(),
+      youSeat: existingSeat,
+    });
+    if (S.game && S.game.phase !== PHASE.LOBBY) pushStates();
+    else hostRenderLobby();
+    return;
+  }
+
   let seat = -1;
 
   // 1) 同名重连：坐回 1 号位（对局中掉线也能回来）
@@ -502,7 +536,7 @@ function sendChat(text) {
 /* ---------------- 绑定事件 ---------------- */
 
 function boot() {
-  $('in-name').value = localStorage.getItem('xq-name') || '';
+  $('in-name').value = store.get('xq-name');
   $('btn-create').addEventListener('click', createRoom);
   $('btn-join').addEventListener('click', joinRoom);
   $('btn-start').addEventListener('click', startGame);

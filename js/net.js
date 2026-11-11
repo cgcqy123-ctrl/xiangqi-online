@@ -14,10 +14,25 @@ export function randomCode(len = 4) {
   return s;
 }
 
-/** 需要自建信令服务器时，在 index.html 里设置 window.PEER_OPTIONS = {host, port, path, key, secure} */
+/**
+ * 默认 ICE 服务器：优先国内可访问的 STUN，再补 Google STUN。
+ * iPhone/Safari 在蜂窝网络、热点或跨运营商网络下只靠默认 STUN 经常打洞失败，
+ * 这里多备几个；如果仍连不上，可在 index.html 用 window.PEER_OPTIONS 覆盖成自建 TURN。
+ */
+export const DEFAULT_ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: 'stun:stun.miwifi.com:3478' },
+  { urls: 'stun:stun.qq.com:3478' },
+  { urls: 'stun:stun.chat.bilibili.com:3478' },
+];
+
+/** 需要自建信令服务器 / TURN 时，在 index.html 里设置 window.PEER_OPTIONS = {host, port, path, key, secure, config} */
 function peerOptions() {
   const o = (typeof window !== 'undefined' && window.PEER_OPTIONS) || null;
-  return o && typeof o === 'object' ? o : {};
+  const opt = o && typeof o === 'object' ? { ...o } : {};
+  if (!opt.config) opt.config = { iceServers: DEFAULT_ICE_SERVERS };
+  else if (!opt.config.iceServers) opt.config = { ...opt.config, iceServers: DEFAULT_ICE_SERVERS };
+  return opt;
 }
 
 export function normalizeCode(input) {
@@ -123,15 +138,16 @@ export class HostRoom {
 
   _onData(conn, msg) {
     if (!msg || typeof msg !== 'object') return;
-    if (conn._xqSeat === undefined) {
-      // 还没分配座位，只接受握手
-      if (msg.t === 'hello') {
-        this.pending.delete(conn);
-        if (this.h.onHello) this.h.onHello(conn, String(msg.name || '').slice(0, 12));
-      }
+    const seat = conn._xqSeat;
+    if (msg.t === 'hello') {
+      // iPhone/Safari 有时会丢掉数据通道刚建立时的第一条消息，加入方会重发 hello。
+      // 所以这里既要接「首次握手」（seat 为 undefined），也要接「已绑定座位的幂等重握手」。
+      this.pending.delete(conn);
+      if (this.h.onHello) this.h.onHello(conn, String(msg.name || '').slice(0, 12), seat);
       return;
     }
-    if (this.h.onMessage) this.h.onMessage(conn._xqSeat, msg);
+    if (seat === undefined) return;
+    if (this.h.onMessage) this.h.onMessage(seat, msg);
   }
 
   /** 把连接绑到某个座位 */
@@ -192,6 +208,9 @@ export class GuestRoom {
     this.peer = null;
     this.conn = null;
     this.closed = false;
+    this.helloName = '';
+    this.handshakeDone = false;
+    this.helloRetry = null;
   }
 
   async join(code, name) {
@@ -220,11 +239,57 @@ export class GuestRoom {
         }
       });
     });
-    conn.on('data', (msg) => this.h.onMessage && this.h.onMessage(msg));
+    this.helloName = name;
+    conn.on('data', (msg) => {
+      // 收到房主的任何消息就说明握手成功，停掉 hello 重发
+      this.handshakeDone = true;
+      this._stopHelloRetry();
+      if (this.h.onMessage) this.h.onMessage(msg);
+    });
     conn.on('close', () => {
+      this._stopHelloRetry();
       if (!this.closed) this.h.onClose && this.h.onClose();
     });
-    conn.send({ t: 'hello', name });
+    this._sendHello();
+    this._startHelloRetry();
+  }
+
+  /** 发送 hello；iPhone/Safari 第一条消息可能丢，外面会定时重发 */
+  _sendHello() {
+    try {
+      if (this.conn && this.conn.open) {
+        this.conn.send({ t: 'hello', name: this.helloName });
+        return true;
+      }
+    } catch (_) { /* ignore */ }
+    return false;
+  }
+
+  /** 握手重试：Safari 偶尔吞掉连接刚建立时的第一条消息，这里每 1.2 秒补发一次 hello */
+  _startHelloRetry() {
+    this._stopHelloRetry();
+    let tries = 0;
+    this.helloRetry = setInterval(() => {
+      if (this.handshakeDone) {
+        this._stopHelloRetry();
+        return;
+      }
+      if (!this.conn || !this.conn.open) return;
+      tries += 1;
+      if (tries > 8) {
+        this._stopHelloRetry();
+        if (this.h.onFail) this.h.onFail('连接超时：房主没有收到你的入座请求，请刷新页面重试');
+        return;
+      }
+      this._sendHello();
+    }, 1200);
+  }
+
+  _stopHelloRetry() {
+    if (this.helloRetry) {
+      clearInterval(this.helloRetry);
+      this.helloRetry = null;
+    }
   }
 
   _newPeer() {
@@ -260,6 +325,7 @@ export class GuestRoom {
 
   close() {
     this.closed = true;
+    this._stopHelloRetry();
     try { this.conn && this.conn.close(); } catch (_) { /* ignore */ }
     try { this.peer && this.peer.destroy(); } catch (_) { /* ignore */ }
   }
