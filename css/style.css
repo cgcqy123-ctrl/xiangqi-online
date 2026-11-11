@@ -1,6 +1,9 @@
 /* 中国象棋 · 联机版 —— 全部样式（移动端优先，木纹棋盘主题） */
 
 :root {
+  /* 页面是深色主题：告诉浏览器本页自带深色配色，
+     安卓自动深色 / 应用内 WebView 看到后不会再强制反色 */
+  color-scheme: dark;
   --wood-1: #f2dcb0;
   --wood-2: #e4c48c;
   --wood-3: #d3ac6e;
@@ -14,6 +17,14 @@
   --panel: rgba(38, 26, 14, 0.86);
   --radius: 12px;
   --cell: 40px;
+}
+
+/* 显式声明深色模式适配：浏览器检测到 prefers-color-scheme 用法后，
+   就不会再把浅色元素（浅色棋子、木纹棋盘）当成浅色背景一律压暗。 */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+  html,
+  body { background-color: #120c06; color: var(--ink); }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }

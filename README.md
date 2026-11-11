@@ -230,7 +230,7 @@ npm run serve      # 本地起服务，http://localhost:8080
 CI：每次 push 到 `main` 会自动 `npm ci && npm run test:all`，测试通过才发布，所以改坏了不会上线。
 
 > **改完记得升版本号**：GitHub Pages 的静态资源会被浏览器缓存 10 分钟。改了 `js/` 或 `css/` 后，
-> 把 `index.html` 里两处 `?v=1`（`css/style.css?v=1`、`js/main.js?v=1`）的数字 +1，
+> 把 `index.html` 里两处 `?v=4`（`css/style.css?v=4`、`js/main.js?v=4`）的数字 +1，
 > 子模块会自动继承这个版本号，朋友刷新即可看到新版。
 
 ---
